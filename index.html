@@ -23,17 +23,26 @@
   button { background:#fff; color:#000; border:none; border-radius:999px; padding:12px 24px;
     font-size:16px; font-weight:600; cursor:pointer; }
   button.secondary { background:#222; color:#fff; }
-  #player { position:fixed; inset:0; overflow:hidden; }
+
+  /* #player is a full-screen flex container that centers #lines both axes by default. */
+  #player { position:fixed; inset:0; overflow:hidden; display:flex;
+    align-items:center; justify-content:center; }
   #player.hidden { display:none; }
-  #lines { position:absolute; left:0; right:0; top:0; display:flex; flex-direction:column; align-items:center; gap:28px; transition:transform .4s ease; will-change:transform; }
-  .line { font-size:22px; font-weight:700; line-height:1.3; color:var(--fg-dim); opacity:0.35; text-align:center; transform:scale(0.92); transition:opacity .4s ease, transform .4s ease, filter .4s ease; filter:blur(2px); }
+
+  /* #lines sits centered via flex; per-active-line vertical shift is layered on via transform. */
+  #lines { display:flex; flex-direction:column; align-items:center; gap:28px;
+    transition:transform .4s ease; will-change:transform; }
+
+  .line { font-size:22px; font-weight:700; line-height:1.3; color:var(--fg-dim); opacity:0.35;
+    text-align:center; transform:scale(0.92);
+    transition:opacity .4s ease, transform .4s ease, filter .4s ease; filter:blur(2px); }
   .line.active { color:var(--fg-bright); opacity:1; transform:scale(1); filter:blur(0); font-size:28px; }
   .line.past { opacity:0.2; }
   .word { display:inline-block; margin-right:0.28em; white-space:pre; }
   .line.active .word { background-image:linear-gradient(90deg,#fff var(--p,0%),rgba(255,255,255,0.3) var(--p,0%));
     -webkit-background-clip:text; background-clip:text; color:transparent; }
-  #controls { position:fixed; bottom:24px; left:0; right:0; display:flex; justify-content:center; gap:16px; }
-  #topbar { position:fixed; top:16px; right:16px; }
+  #controls { position:fixed; bottom:24px; left:0; right:0; display:flex; justify-content:center; gap:16px; z-index:5; }
+  #topbar { position:fixed; top:16px; right:16px; z-index:5; }
   #topbar button { padding:8px 16px; font-size:13px; }
 </style>
 </head>
@@ -100,6 +109,7 @@ function buildTimeline(text, wpm) {
 
 function render(lines) {
   linesEl.innerHTML = '';
+  linesEl.style.transform = 'translateY(0px)';
   lineEls = []; wordEls = [];
   lines.forEach((line, li) => {
     const div = document.createElement('div');
@@ -116,14 +126,18 @@ function render(lines) {
     linesEl.appendChild(div);
     lineEls.push(div);
   });
+  requestAnimationFrame(() => centerActiveLine(0));
 }
 
+// Shifts #lines so the given line's vertical center lands on #lines's own center —
+// since #player already centers #lines as a flex child, this shift is *relative to*
+// an already-centered baseline, not an absolute viewport calculation.
 function centerActiveLine(activeLine) {
   if (activeLine < 0 || !lineEls[activeLine]) return;
   const lineEl = lineEls[activeLine];
+  const containerCenter = linesEl.offsetHeight / 2;
   const lineCenter = lineEl.offsetTop + lineEl.offsetHeight / 2;
-  const viewportCenter = window.innerHeight / 2;
-  linesEl.style.transform = `translateY(${viewportCenter - lineCenter}px)`;
+  linesEl.style.transform = `translateY(${containerCenter - lineCenter}px)`;
 }
 
 function tick(now) {
@@ -175,9 +189,9 @@ startBtn.addEventListener('click', () => {
   const built = buildTimeline(text, Number(speedInput.value));
   timeline = built.timeline;
   totalDuration = built.total;
-  render(built.lines);
   setup.classList.add('hidden');
   player.classList.remove('hidden');
+  render(built.lines);
   pausedAt = 0;
   lastActiveLine = -1;
   play();
@@ -202,6 +216,8 @@ playPauseBtn.addEventListener('click', () => {
   if (playPauseBtn.textContent === 'Replay') { restartBtn.click(); return; }
   if (playing) pause(); else play();
 });
+
+window.addEventListener('resize', () => centerActiveLine(lastActiveLine < 0 ? 0 : lastActiveLine));
 </script>
 </body>
 </html>
