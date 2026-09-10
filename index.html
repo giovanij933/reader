@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
+<title>PROMPT // ISIONXXX</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --amber: #ffb000;
+    --amber-dim: #7a5500;
+    --grey: #444;
+    --text: #e8e8e8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    overflow: hidden;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* --- Prompter view --- */
+  #stage {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--amber-dim);
+  }
+  #centerLine {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--amber);
+    opacity: 0.25;
+    z-index: 2;
+    pointer-events: none;
+  }
+  #scrollWrap {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    padding: 0 6vw;
+  }
+  #scrollText {
+    font-weight: 500;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    transition: font-size 0.15s ease;
+  }
+  #scrollText.mirrored { transform: scaleX(-1); }
+
+  /* --- Editor overlay --- */
+  #editorOverlay {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    z-index: 10;
+    display: none;
+    flex-direction: column;
+  }
+  #editorOverlay.show { display: flex; }
+  #scriptInput {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: none;
+    outline: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    line-height: 1.5;
+    padding: 20px;
+    resize: none;
+  }
+  #scriptInput::placeholder { color: var(--grey); }
+
+  /* --- Controls --- */
+  #controls {
+    background: #0d0d0d;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--amber-dim);
+  }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .label {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--amber-dim);
+    width: 62px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+  input[type="range"] {
+    flex: 1;
+    accent-color: var(--amber);
+    height: 4px;
+  }
+  .val {
+    font-size: 11px;
+    color: var(--amber);
+    width: 46px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .btns { display: flex; gap: 8px; }
+  button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--amber-dim);
+    color: var(--amber);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 10px 0;
+    cursor: pointer;
+  }
+  button:active { background: var(--amber); color: #000; }
+  button.primary { border-color: var(--amber); }
+  #editBtn, #mirrorBtn {
+    flex: 0 0 auto;
+    padding: 10px 14px;
+  }
+  #status {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-size: 10px;
+    color: var(--amber-dim);
+    letter-spacing: 1px;
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="status">// PROMPT.01</div>
+    <div id="centerLine"></div>
+    <div id="scrollWrap">
+      <div id="scrollText"></div>
+    </div>
+    <div id="editorOverlay">
+      <textarea id="scriptInput" placeholder="Paste or type your script here..."></textarea>
+    </div>
+  </div>
+
+  <div id="controls">
+    <div class="row">
+      <span class="label">Speed</span>
+      <input type="range" id="speedSlider" min="10" max="400" value="120" step="5">
+      <span class="val" id="speedVal">120</span>
+    </div>
+    <div class="row">
+      <span class="label">Size</span>
+      <input type="range" id="sizeSlider" min="16" max="120" value="42" step="2">
+      <span class="val" id="sizeVal">42</span>
+    </div>
+    <div class="row btns">
+      <button id="editBtn">Edit</button>
+      <button id="mirrorBtn">Mirror</button>
+      <button id="resetBtn">Reset</button>
+      <button id="playBtn" class="primary">Play</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const scrollText = document.getElementById('scrollText');
+  const scrollWrap = document.getElementById('scrollWrap');
+  const stage = document.getElementById('stage');
+  const editorOverlay = document.getElementById('editorOverlay');
+  const scriptInput = document.getElementById('scriptInput');
+  const speedSlider = document.getElementById('speedSlider');
+  const sizeSlider = document.getElementById('sizeSlider');
+  const speedVal = document.getElementById('speedVal');
+  const sizeVal = document.getElementById('sizeVal');
+  const playBtn = document.getElementById('playBtn');
+  const editBtn = document.getElementById('editBtn');
+  const mirrorBtn = document.getElementById('mirrorBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const DEFAULT_SCRIPT = "TAP 'EDIT' TO WRITE YOUR SCRIPT.\n\nAdjust speed (words per minute) and size below.\n\nHit Play to start scrolling. Tap Play again to pause.";
+
+  let playing = false;
+  let mirrored = false;
+  let posY = 0; // px scrolled
+  let rafId = null;
+  let lastTime = null;
+
+  // px/sec derived from "wpm-ish" slider (not literal WPM, just a scroll-speed feel)
+  function pxPerSec() {
+    return Number(speedSlider.value) * 0.6;
+  }
+
+  function loadState() {
+    const saved = localStorageSafe('get', 'promptScript');
+    scriptInput.value = saved || DEFAULT_SCRIPT;
+    scrollText.textContent = scriptInput.value;
+    const savedSize = localStorageSafe('get', 'promptSize');
+    const savedSpeed = localStorageSafe('get', 'promptSpeed');
+    if (savedSize) { sizeSlider.value = savedSize; }
+    if (savedSpeed) { speedSlider.value = savedSpeed; }
+    applySize();
+    speedVal.textContent = speedSlider.value;
+  }
+
+  // Artifacts can't use localStorage — guard so this degrades gracefully if run in a sandboxed context
+  function localStorageSafe(mode, key, val) {
+    try {
+      if (mode === 'get') return localStorage.getItem(key);
+      if (mode === 'set') localStorage.setItem(key, val);
+    } catch (e) { /* storage unavailable — session-only state */ }
+  }
+
+  function applySize() {
+    scrollText.style.fontSize = sizeSlider.value + 'px';
+    sizeVal.textContent = sizeSlider.value;
+  }
+
+  function tick(ts) {
+    if (!lastTime) lastTime = ts;
+    const dt = (ts - lastTime) / 1000;
+    lastTime = ts;
+    posY += pxPerSec() * dt;
+    scrollWrap.style.transform = `translateY(-${posY}px)`;
+
+    const totalHeight = scrollText.offsetHeight;
+    if (posY > totalHeight + stage.offsetHeight / 2) {
+      stopPlayback(); // reached the end
+    }
+    if (playing) rafId = requestAnimationFrame(tick);
+  }
+
+  function startPlayback() {
+    playing = true;
+    lastTime = null;
+    playBtn.textContent = 'Pause';
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function stopPlayback() {
+    playing = false;
+    playBtn.textContent = 'Play';
+    if (rafId) cancelAnimationFrame(rafId);
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (playing) stopPlayback(); else startPlayback();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    stopPlayback();
+    posY = 0;
+    scrollWrap.style.transform = 'translateY(0px)';
+  });
+
+  editBtn.addEventListener('click', () => {
+    stopPlayback();
+    editorOverlay.classList.toggle('show');
+    if (!editorOverlay.classList.contains('show')) {
+      scrollText.textContent = scriptInput.value;
+      localStorageSafe('set', 'promptScript', scriptInput.value);
+      posY = 0;
+      scrollWrap.style.transform = 'translateY(0px)';
+    }
+  });
+
+  mirrorBtn.addEventListener('click', () => {
+    mirrored = !mirrored;
+    scrollText.classList.toggle('mirrored', mirrored);
+  });
+
+  speedSlider.addEventListener('input', () => {
+    speedVal.textContent = speedSlider.value;
+    localStorageSafe('set', 'promptSpeed', speedSlider.value);
+  });
+
+  sizeSlider.addEventListener('input', () => {
+    applySize();
+    localStorageSafe('set', 'promptSize', sizeSlider.value);
+  });
+
+  // Spacebar play/pause when not editing
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !editorOverlay.classList.contains('show')) {
+      e.preventDefault();
+      playBtn.click();
+    }
+  });
+
+  loadState();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
